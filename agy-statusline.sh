@@ -43,6 +43,7 @@ NUM_COLOR="${FG_BRIGHT_WHITE}${B}"
   read -r MODEL
   read -r COLS
   read -r CWD
+  read -r CYCLE_MODE
   read -r Q_GEMINI_5H
   read -r Q_GEMINI_WEEKLY
   read -r Q_3P_5H
@@ -64,6 +65,7 @@ NUM_COLOR="${FG_BRIGHT_WHITE}${B}"
     (.model.display_name // ""),
     (.terminal_width // 80),
     (.cwd // ""),
+    (.cycle_mode // ""),
     (if .quota."gemini-5h".remaining_fraction != null then (.quota."gemini-5h".remaining_fraction * 100 | round) else "" end),
     (if .quota."gemini-weekly".remaining_fraction != null then (.quota."gemini-weekly".remaining_fraction * 100 | round) else "" end),
     (if .quota."3p-5h".remaining_fraction != null then (.quota."3p-5h".remaining_fraction * 100 | round) else "" end),
@@ -72,7 +74,7 @@ NUM_COLOR="${FG_BRIGHT_WHITE}${B}"
     (.quota."gemini-weekly".reset_in_seconds // ""),
     (.quota."3p-5h".reset_in_seconds // ""),
     (.quota."3p-weekly".reset_in_seconds // "")
-  ' 2>/dev/null || printf "idle\n0\n\nfalse\nfalse\n0\n0\n0\n\n80\n\n\n\n\n\n\n\n\n\n"
+  ' 2>/dev/null || printf "idle\n0\n\nfalse\nfalse\n0\n0\n0\n\n80\n\n\n\n\n\n\n\n\n\n\n"
 )"
 
 # ─── Computed Values ─────────────────────────────────────────────────────────
@@ -101,6 +103,12 @@ if [ -n "$CWD" ]; then
   HOME_DIR="${HOME:-/home/dtserver}"
   CWD_DISPLAY="${CWD/#$HOME_DIR/\~}"
   C="${FG_GRAY} ╱ ${FG_CYAN}${CWD_DISPLAY}${R}"
+fi
+
+# ─── Cycle Mode ──────────────────────────────────────────────────────────────
+CY=""
+if [ -n "$CYCLE_MODE" ]; then
+  CY="${FG_GRAY} ╱ ${FG_BRIGHT_BLUE}${CYCLE_MODE}${R}"
 fi
 
 # ─── VCS Branch ──────────────────────────────────────────────────────────────
@@ -185,7 +193,7 @@ format_quota() {
   if [ -n "$r_sec" ]; then
     local dur
     dur=$(format_duration "$r_sec")
-    reset_str=" in ${dur}"
+    reset_str=" ⏳${dur}"
   fi
   
   echo -ne "${FG_GRAY}${name} ${col}${pct}% (${period}${reset_str})${R}"
@@ -234,7 +242,7 @@ if [ -n "$Q_3P" ]; then
 fi
 
 # ─── Output ──────────────────────────────────────────────────────────────────
-LINE1="${S}${M}${C}${V}"
+LINE1="${S}${M}${C}${CY}${V}"
 LINE2=" ${CTX}"
 
 if [ "$ARTIFACTS" -gt 0 ] 2>/dev/null; then
@@ -257,13 +265,10 @@ if [ -n "$Q_FMT" ]; then
   LINE2="${LINE2}${DOT}${Q_FMT}"
 fi
 
-if [ "$COLS" -ge 120 ]; then
-  # Wide: single line
-  echo -e "${LINE1}${FG_GRAY}  │  ${R}${LINE2}"
-elif [ "$COLS" -ge 80 ]; then
-  # Medium: two-line layout with border
-  echo -e "${FG_GRAY}╭─${R} ${LINE1}"
-  echo -e "${FG_GRAY}╰─${R}${LINE2}"
+if [ "$COLS" -ge 80 ]; then
+  # Wide / Medium: two lines
+  echo -e "${LINE1}"
+  echo -e "${LINE2}"
 else
   # Narrow: compact two-line, minimal chrome
   echo -e "${S}${M}"
