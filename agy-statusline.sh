@@ -52,7 +52,7 @@ NUM_COLOR="${FG_BRIGHT_WHITE}${B}"
   read -r R_GEMINI_WEEKLY
   read -r R_3P_5H
   read -r R_3P_WEEKLY
-} <<< "$(
+} < <(
   jq -r '
     (.agent_state // "idle"),
     (.context_window.used_percentage // 0),
@@ -75,7 +75,7 @@ NUM_COLOR="${FG_BRIGHT_WHITE}${B}"
     (.quota."3p-5h".reset_in_seconds // ""),
     (.quota."3p-weekly".reset_in_seconds // "")
   ' 2>/dev/null || printf "idle\n0\n\nfalse\nfalse\n0\n0\n0\n\n80\n\n\n\n\n\n\n\n\n\n\n"
-)"
+)
 
 # ─── Computed Values ─────────────────────────────────────────────────────────
 # Use LC_NUMERIC=C to prevent bash printf errors in locales that use commas for decimals
