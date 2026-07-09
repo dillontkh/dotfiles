@@ -169,13 +169,21 @@ format_duration() {
     echo -ne "${sec}s"
   elif [ "$sec" -lt 3600 ]; then
     echo -ne "$(( sec / 60 ))m"
-  else
+  elif [ "$sec" -lt 86400 ]; then
     local hrs=$(( sec / 3600 ))
     local mins=$(( (sec % 3600) / 60 ))
     if [ "$mins" -eq 0 ]; then
       echo -ne "${hrs}h"
     else
       echo -ne "${hrs}h${mins}m"
+    fi
+  else
+    local days=$(( sec / 86400 ))
+    local hrs=$(( (sec % 86400) / 3600 ))
+    if [ "$hrs" -eq 0 ]; then
+      echo -ne "${days}d"
+    else
+      echo -ne "${days}d${hrs}h"
     fi
   fi
 }
