@@ -82,19 +82,10 @@ NUM_COLOR="${FG_BRIGHT_WHITE}${B}"
 PCT_FMT=$(LC_NUMERIC=C printf "%.1f" "$USED_PCT")
 PCT_INT=${USED_PCT%.*}; PCT_INT=${PCT_INT:-0}
 
-# ─── State Indicator (No background colors) ──────────────────────────────────
-case "$STATE" in
-  idle)     S="${FG_BRIGHT_GREEN}${B}● READY${R}" ;;
-  thinking) S="${FG_BRIGHT_YELLOW}${B}◆ THINKING${R}" ;;
-  working)  S="${FG_BRIGHT_CYAN}${B}⚙ WORKING${R}" ;;
-  tool_use) S="${FG_BRIGHT_MAGENTA}${B}🔧 TOOL${R}" ;;
-  *)        S="${FG_WHITE}${B}⏳ $(echo "$STATE" | tr '[:lower:]' '[:upper:]')${R}" ;;
-esac
-
 # ─── Model ───────────────────────────────────────────────────────────────────
 M=""
 if [ -n "$MODEL" ]; then
-  M="${FG_GRAY} ╱ ${FG_BRIGHT_MAGENTA}${I}${MODEL}${R}"
+  M="${FG_BRIGHT_MAGENTA}${I}${MODEL}${R}"
 fi
 
 # ─── CWD ─────────────────────────────────────────────────────────────────────
@@ -102,23 +93,36 @@ C=""
 if [ -n "$CWD" ]; then
   HOME_DIR="${HOME:-/home/dtserver}"
   CWD_DISPLAY="${CWD/#$HOME_DIR/\~}"
-  C="${FG_GRAY} ╱ ${FG_CYAN}${CWD_DISPLAY}${R}"
+  if [ -n "$M" ]; then
+    C="${FG_GRAY} ╱ ${FG_CYAN}${CWD_DISPLAY}${R}"
+  else
+    C="${FG_CYAN}${CWD_DISPLAY}${R}"
+  fi
+fi
+
+# ─── VCS Branch ──────────────────────────────────────────────────────────────
+V=""
+if [ -z "$VCS_BRANCH" ] && [ -n "$CWD" ] && [ -d "$CWD" ]; then
+  VCS_BRANCH=$(git --no-optional-locks -C "$CWD" branch --show-current 2>/dev/null || git --no-optional-locks -C "$CWD" rev-parse --short HEAD 2>/dev/null || true)
+  if [ -n "$VCS_BRANCH" ] && [ "$VCS_DIRTY" != "true" ]; then
+    if [ -n "$(git --no-optional-locks -C "$CWD" status --porcelain 2>/dev/null)" ]; then
+      VCS_DIRTY="true"
+    fi
+  fi
+fi
+
+if [ -n "$VCS_BRANCH" ]; then
+  if [ "$VCS_DIRTY" = "true" ]; then
+    V=" ${FG_GRAY}(${FG_BRIGHT_RED}${VCS_BRANCH}${FG_BRIGHT_YELLOW}*${FG_GRAY})${R}"
+  else
+    V=" ${FG_GRAY}(${FG_BRIGHT_BLUE}${VCS_BRANCH}${FG_GRAY})${R}"
+  fi
 fi
 
 # ─── Cycle Mode ──────────────────────────────────────────────────────────────
 CY=""
 if [ -n "$CYCLE_MODE" ]; then
   CY="${FG_GRAY} ╱ ${FG_BRIGHT_BLUE}${CYCLE_MODE}${R}"
-fi
-
-# ─── VCS Branch ──────────────────────────────────────────────────────────────
-V=""
-if [ -n "$VCS_BRANCH" ]; then
-  if [ "$VCS_DIRTY" = "true" ]; then
-    V="${FG_GRAY} ╱ ${FG_BRIGHT_RED}${VCS_BRANCH}${FG_BRIGHT_YELLOW}*${R}"
-  else
-    V="${FG_GRAY} ╱ ${FG_BRIGHT_BLUE}${VCS_BRANCH}${R}"
-  fi
 fi
 
 # ─── Sandbox Badge ───────────────────────────────────────────────────────────
@@ -250,7 +254,7 @@ if [ -n "$Q_3P" ]; then
 fi
 
 # ─── Output ──────────────────────────────────────────────────────────────────
-LINE1="${S}${M}${C}${CY}${V}"
+LINE1="${M}${C}${V}${CY}"
 LINE2=" ${CTX}"
 
 if [ "$ARTIFACTS" -gt 0 ] 2>/dev/null; then
@@ -279,7 +283,7 @@ if [ "$COLS" -ge 80 ]; then
   echo -e "${LINE2}"
 else
   # Narrow: compact two-line, minimal chrome
-  echo -e "${S}${M}"
+  echo -e "${M}"
   if [ "$BG_TASKS" -gt 0 ] 2>/dev/null; then
     echo -e "${CTX}${DOT}${BG_FMT}"
   else
