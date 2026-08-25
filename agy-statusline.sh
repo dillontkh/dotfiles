@@ -29,6 +29,9 @@ FG_BRIGHT_WHITE="\033[97m"
 # Number Highlight Color
 NUM_COLOR="${FG_BRIGHT_WHITE}${B}"
 
+# Separators
+DOT="${FG_GRAY} · ${R}"
+
 # ─── Parse JSON from stdin (Single jq pass for performance) ──────────────────
 # Extract all fields in one pass to prevent spawning jq 8 times.
 {
@@ -94,7 +97,7 @@ if [ -n "$CWD" ]; then
   HOME_DIR="${HOME:-/home/dtserver}"
   CWD_DISPLAY="${CWD/#$HOME_DIR/\~}"
   if [ -n "$M" ]; then
-    C="${FG_GRAY} ╱ ${FG_CYAN}${CWD_DISPLAY}${R}"
+    C="${DOT}${FG_CYAN}${CWD_DISPLAY}${R}"
   else
     C="${FG_CYAN}${CWD_DISPLAY}${R}"
   fi
@@ -241,52 +244,75 @@ if [ -n "$Q_3P_5H" ] || [ -n "$Q_3P_WEEKLY" ]; then
   fi
 fi
 
-Q_FMT=""
-if [ -n "$Q_GEMINI" ]; then
-  Q_FMT="${Q_GEMINI}"
-fi
-if [ -n "$Q_3P" ]; then
-  if [ -n "$Q_FMT" ]; then
-    Q_FMT="${Q_FMT}${DOT}${Q_3P}"
-  else
-    Q_FMT="${Q_3P}"
-  fi
-fi
+# ─── Dynamic Priority Assembly ───────────────────────────────────────────────
+strip_ansi() {
+  echo -e "$1" | sed -r 's/\x1B\[[0-9;]*[a-zA-Z]//g'
+}
 
-# ─── Output ──────────────────────────────────────────────────────────────────
-LINE1="${M}${C}${V}${CY}"
+# ── Line 1 Progressive Degradation
+# 1. Full: Model + CWD + Branch + Cycle Mode
+# 2. Drop Cycle Mode: Model + CWD + Branch
+# 3. Drop CWD: Model + Branch
+# 4. Drop Branch: Model only
+C1="${M}${C}${V}${CY}"
+C2="${M}${C}${V}"
+C3="${M}${V}"
+C4="${M}"
+
+LINE1=""
+for cand in "$C1" "$C2" "$C3" "$C4"; do
+  [ -z "$cand" ] && continue
+  clean=$(strip_ansi "$cand")
+  if [ "${#clean}" -le "$COLS" ]; then
+    LINE1="$cand"
+    break
+  fi
+done
+LINE1="${LINE1:-$M}"
+
+# ── Line 2 Progressive Packing
 LINE2=" ${CTX}"
 
-if [ "$ARTIFACTS" -gt 0 ] 2>/dev/null; then
-  LINE2="${LINE2}${DOT}${ART_FMT}"
-fi
-
-if [ "$SUBAGENTS" -gt 0 ] 2>/dev/null; then
-  LINE2="${LINE2}${DOT}${SUB_FMT}"
-fi
-
-if [ "$BG_TASKS" -gt 0 ] 2>/dev/null; then
-  LINE2="${LINE2}${DOT}${BG_FMT}"
-fi
-
-if [ -n "$SB" ]; then
-  LINE2="${LINE2}${DOT}${SB}"
-fi
-
-if [ -n "$Q_FMT" ]; then
-  LINE2="${LINE2}${DOT}${Q_FMT}"
-fi
-
-if [ "$COLS" -ge 80 ]; then
-  # Wide / Medium: two lines
-  echo -e "${LINE1}"
-  echo -e "${LINE2}"
-else
-  # Narrow: compact two-line, minimal chrome
-  echo -e "${M}"
-  if [ "$BG_TASKS" -gt 0 ] 2>/dev/null; then
-    echo -e "${CTX}${DOT}${BG_FMT}"
-  else
-    echo -e "${CTX}"
+append_if_fits() {
+  local candidate="$1"
+  [ -z "$candidate" ] && return
+  local test_line="${LINE2}${DOT}${candidate}"
+  local clean
+  clean=$(strip_ansi "$test_line")
+  if [ "${#clean}" -le "$COLS" ]; then
+    LINE2="$test_line"
   fi
+}
+
+# Priority 1: Active Background Tasks
+if [ "$BG_TASKS" -gt 0 ] 2>/dev/null; then
+  append_if_fits "$BG_FMT"
 fi
+
+# Priority 2: Active Subagents
+if [ "$SUBAGENTS" -gt 0 ] 2>/dev/null; then
+  append_if_fits "$SUB_FMT"
+fi
+
+# Priority 3: Gemini Quota
+if [ -n "$Q_GEMINI" ]; then
+  append_if_fits "$Q_GEMINI"
+fi
+
+# Priority 4: 3P Quota (split independently)
+if [ -n "$Q_3P" ]; then
+  append_if_fits "$Q_3P"
+fi
+
+# Priority 5: Artifacts
+if [ "$ARTIFACTS" -gt 0 ] 2>/dev/null; then
+  append_if_fits "$ART_FMT"
+fi
+
+# Priority 6: Sandbox Badge
+if [ -n "$SB" ]; then
+  append_if_fits "$SB"
+fi
+
+echo -e "${LINE1}"
+echo -e "${LINE2}"
