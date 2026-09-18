@@ -6,4 +6,5 @@ ln -sfn "$DOTFILES_DIR/.pi/agent/skills/brave-search" ~/.pi/agent/skills/brave-s
 
 mkdir -p ~/.pi/agent/extensions
 ln -sfn "$DOTFILES_DIR/.pi/agent/extensions/compact-mode.ts" ~/.pi/agent/extensions/compact-mode.ts
+ln -sfn "$DOTFILES_DIR/.pi/agent/extensions/permission-gate" ~/.pi/agent/extensions/permission-gate
 
