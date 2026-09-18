@@ -49,12 +49,8 @@ DOT="${FG_GRAY} · ${R}"
   read -r CYCLE_MODE
   read -r Q_GEMINI_5H
   read -r Q_GEMINI_WEEKLY
-  read -r Q_3P_5H
-  read -r Q_3P_WEEKLY
   read -r R_GEMINI_5H
   read -r R_GEMINI_WEEKLY
-  read -r R_3P_5H
-  read -r R_3P_WEEKLY
 } < <(
   jq -r '
     (.agent_state // "idle"),
@@ -71,13 +67,9 @@ DOT="${FG_GRAY} · ${R}"
     (.cycle_mode // ""),
     (if .quota."gemini-5h".remaining_fraction != null then (.quota."gemini-5h".remaining_fraction * 100 | round) else "" end),
     (if .quota."gemini-weekly".remaining_fraction != null then (.quota."gemini-weekly".remaining_fraction * 100 | round) else "" end),
-    (if .quota."3p-5h".remaining_fraction != null then (.quota."3p-5h".remaining_fraction * 100 | round) else "" end),
-    (if .quota."3p-weekly".remaining_fraction != null then (.quota."3p-weekly".remaining_fraction * 100 | round) else "" end),
     (.quota."gemini-5h".reset_in_seconds // ""),
-    (.quota."gemini-weekly".reset_in_seconds // ""),
-    (.quota."3p-5h".reset_in_seconds // ""),
-    (.quota."3p-weekly".reset_in_seconds // "")
-  ' 2>/dev/null || printf "idle\n0\n\nfalse\nfalse\n0\n0\n0\n\n80\n\n\n\n\n\n\n\n\n\n\n"
+    (.quota."gemini-weekly".reset_in_seconds // "")
+  ' 2>/dev/null || printf "idle\n0\n\nfalse\nfalse\n0\n0\n0\n\n80\n\n\n\n\n\n\n"
 )
 
 # ─── Computed Values ─────────────────────────────────────────────────────────
@@ -198,8 +190,7 @@ format_duration() {
 format_quota() {
   local name="$1"
   local pct="$2"
-  local period="$3"
-  local r_sec="$4"
+  local r_sec="$3"
   
   local col
   col=$(get_quota_color "$pct")
@@ -208,40 +199,20 @@ format_quota() {
   if [ -n "$r_sec" ]; then
     local dur
     dur=$(format_duration "$r_sec")
-    reset_str=" ⏳${dur}"
+    reset_str=" (⏳${dur})"
   fi
   
-  echo -ne "${FG_GRAY}${name} ${col}${pct}% (${period}${reset_str})${R}"
+  echo -ne "${FG_GRAY}${name} ${col}${pct}%${reset_str}${R}"
 }
 
-Q_GEMINI=""
-if [ -n "$Q_GEMINI_5H" ] || [ -n "$Q_GEMINI_WEEKLY" ]; then
-  if [ -n "$Q_GEMINI_5H" ] && [ -n "$Q_GEMINI_WEEKLY" ]; then
-    if [ "$Q_GEMINI_5H" -le "$Q_GEMINI_WEEKLY" ]; then
-      Q_GEMINI=$(format_quota "gemini" "$Q_GEMINI_5H" "5h" "$R_GEMINI_5H")
-    else
-      Q_GEMINI=$(format_quota "gemini" "$Q_GEMINI_WEEKLY" "wk" "$R_GEMINI_WEEKLY")
-    fi
-  elif [ -n "$Q_GEMINI_5H" ]; then
-    Q_GEMINI=$(format_quota "gemini" "$Q_GEMINI_5H" "5h" "$R_GEMINI_5H")
-  elif [ -n "$Q_GEMINI_WEEKLY" ]; then
-    Q_GEMINI=$(format_quota "gemini" "$Q_GEMINI_WEEKLY" "wk" "$R_GEMINI_WEEKLY")
-  fi
+Q_GEMINI_5H_FMT=""
+if [ -n "$Q_GEMINI_5H" ]; then
+  Q_GEMINI_5H_FMT=$(format_quota "5h" "$Q_GEMINI_5H" "$R_GEMINI_5H")
 fi
 
-Q_3P=""
-if [ -n "$Q_3P_5H" ] || [ -n "$Q_3P_WEEKLY" ]; then
-  if [ -n "$Q_3P_5H" ] && [ -n "$Q_3P_WEEKLY" ]; then
-    if [ "$Q_3P_5H" -le "$Q_3P_WEEKLY" ]; then
-      Q_3P=$(format_quota "3p" "$Q_3P_5H" "5h" "$R_3P_5H")
-    else
-      Q_3P=$(format_quota "3p" "$Q_3P_WEEKLY" "wk" "$R_3P_WEEKLY")
-    fi
-  elif [ -n "$Q_3P_5H" ]; then
-    Q_3P=$(format_quota "3p" "$Q_3P_5H" "5h" "$R_3P_5H")
-  elif [ -n "$Q_3P_WEEKLY" ]; then
-    Q_3P=$(format_quota "3p" "$Q_3P_WEEKLY" "wk" "$R_3P_WEEKLY")
-  fi
+Q_GEMINI_WEEKLY_FMT=""
+if [ -n "$Q_GEMINI_WEEKLY" ]; then
+  Q_GEMINI_WEEKLY_FMT=$(format_quota "wk" "$Q_GEMINI_WEEKLY" "$R_GEMINI_WEEKLY")
 fi
 
 # ─── Dynamic Priority Assembly ───────────────────────────────────────────────
@@ -294,14 +265,14 @@ if [ "$SUBAGENTS" -gt 0 ] 2>/dev/null; then
   append_if_fits "$SUB_FMT"
 fi
 
-# Priority 3: Gemini Quota
-if [ -n "$Q_GEMINI" ]; then
-  append_if_fits "$Q_GEMINI"
+# Priority 3: Gemini 5-Hour Quota
+if [ -n "$Q_GEMINI_5H_FMT" ]; then
+  append_if_fits "$Q_GEMINI_5H_FMT"
 fi
 
-# Priority 4: 3P Quota (split independently)
-if [ -n "$Q_3P" ]; then
-  append_if_fits "$Q_3P"
+# Priority 4: Gemini Weekly Quota
+if [ -n "$Q_GEMINI_WEEKLY_FMT" ]; then
+  append_if_fits "$Q_GEMINI_WEEKLY_FMT"
 fi
 
 # Priority 5: Artifacts
